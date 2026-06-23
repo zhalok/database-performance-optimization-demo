@@ -110,15 +110,45 @@ const bdDistricts = [
   "Sylhet"
 ];
 
-const SEATS_PER_TRIP = 100;
-const COLUMNS_PER_ROW = 5; // seat_no, from_location, to_location, bus_company, is_booked
-const ROWS_PER_BATCH = 5000; // 5000 * 5 = 25000 params, well under the 65535 limit
+const SEATS_PER_TRIP = 50;
+const DAYS = Number(process.env.SEED_DAYS) || 30; // trips for the next N days
+const SLOT_MINUTES = Number(process.env.SEED_SLOT_MINUTES) || 30; // a trip every N minutes
+const SLOTS_PER_DAY = (24 * 60) / SLOT_MINUTES;
+const COLUMNS_PER_ROW = 7; // seat_no, from_location, to_location, bus_company, is_booked, travel_date, travel_time
+const ROWS_PER_BATCH = 5000; // 5000 * 7 = 35000 params, under the 65535 limit
 
 function seatNo(n) {
   // 100 seats laid out as A1..A25, B1..B25, C1..C25, D1..D25
   const row = String.fromCharCode(65 + Math.floor((n - 1) / 25));
   const col = ((n - 1) % 25) + 1;
   return `${row}${col}`;
+}
+
+// The next `numDays` calendar days (including today) as YYYY-MM-DD strings.
+function travelDates(numDays) {
+  const dates = [];
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  for (let d = 0; d < numDays; d++) {
+    const dt = new Date(base);
+    dt.setDate(base.getDate() + d);
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    const day = String(dt.getDate()).padStart(2, "0");
+    dates.push(`${y}-${m}-${day}`);
+  }
+  return dates;
+}
+
+// All departure times in a day at `slotMinutes` intervals as HH:MM strings.
+function timeSlots(slotMinutes) {
+  const slots = [];
+  for (let m = 0; m < 24 * 60; m += slotMinutes) {
+    const hh = String(Math.floor(m / 60)).padStart(2, "0");
+    const mm = String(m % 60).padStart(2, "0");
+    slots.push(`${hh}:${mm}`);
+  }
+  return slots;
 }
 
 async function flush(client, rows) {
@@ -138,7 +168,7 @@ async function flush(client, rows) {
   }
 
   const sql =
-    `insert into tickets (seat_no, from_location, to_location, bus_company, is_booked) values ` +
+    `insert into tickets (seat_no, from_location, to_location, bus_company, is_booked, travel_date, travel_time) values ` +
     placeholders.join(", ");
 
   await client.query(sql, values);
@@ -156,32 +186,46 @@ async function seed() {
   await client.connect();
   console.log("Connected. Generating tickets...");
 
+  const dates = travelDates(DAYS);
+  const slots = timeSlots(SLOT_MINUTES);
+
+  const routes = bdDistricts.length * (bdDistricts.length - 1);
   const totalTrips =
-    busCompanies.length * bdDistricts.length * (bdDistricts.length - 1);
+    dates.length * slots.length * busCompanies.length * routes;
   const totalRows = totalTrips * SEATS_PER_TRIP;
   console.log(
-    `Planned: ${totalTrips.toLocaleString()} trips x ${SEATS_PER_TRIP} seats = ${totalRows.toLocaleString()} tickets`
+    `Planned: ${dates.length} days x ${slots.length} slots/day x ${busCompanies.length} companies x ${routes.toLocaleString()} routes = ${totalTrips.toLocaleString()} trips`
+  );
+  console.log(
+    `         x ${SEATS_PER_TRIP} seats = ${totalRows.toLocaleString()} tickets`
   );
 
   let buffer = [];
   let inserted = 0;
   const start = Date.now();
 
-  for (const company of busCompanies) {
-    for (const from of bdDistricts) {
-      for (const to of bdDistricts) {
-        if (from === to) continue; // no trip from a city to itself
+  // Seat is the outermost loop so that each trip's seats are scattered far
+  // apart in the table. For one seat we emit every
+  // (date, time, company, from, to) combination before moving on to the next.
+  for (let seat = 1; seat <= SEATS_PER_TRIP; seat++) {
+    for (const date of dates) {
+      for (const time of slots) {
+        for (const company of busCompanies) {
+          for (const from of bdDistricts) {
+            for (const to of bdDistricts) {
+              if (from === to) continue; // no trip from a city to itself
 
-        for (let seat = 1; seat <= SEATS_PER_TRIP; seat++) {
-          buffer.push([seatNo(seat), from, to, company, false]);
+              buffer.push([seatNo(seat), from, to, company, false, date, time]);
 
-          if (buffer.length >= ROWS_PER_BATCH) {
-            await flush(client, buffer);
-            inserted += buffer.length;
-            buffer = [];
-            process.stdout.write(
-              `\rInserted ${inserted.toLocaleString()} / ${totalRows.toLocaleString()}`
-            );
+              if (buffer.length >= ROWS_PER_BATCH) {
+                await flush(client, buffer);
+                inserted += buffer.length;
+                buffer = [];
+                process.stdout.write(
+                  `\rInserted ${inserted.toLocaleString()} / ${totalRows.toLocaleString()}`
+                );
+              }
+            }
           }
         }
       }

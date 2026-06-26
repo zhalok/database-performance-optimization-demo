@@ -6,26 +6,26 @@ const busCompanies = [
   "Shyamoli",
   "Shohagh",
   "SR",
-  "Desh",
-  "Saintmartin",
-  "Ena",
-  "Silk Line",
-  "Sakura",
-  "Eagle",
-  "Royal",
-  "Agamony",
-  "Tuba Line",
-  "London",
-  "Star Line",
-  "Blue Line",
-  "Diganta",
-  "AK",
-  "Unique",
-  "Saudia",
-  "TR",
-  "Nabil",
-  "Bablu",
-  "Rozina"
+  // "Desh",
+  // "Saintmartin",
+  // "Ena",
+  // "Silk Line",
+  // "Sakura",
+  // "Eagle",
+  // "Royal",
+  // "Agamony",
+  // "Tuba Line",
+  // "London",
+  // "Star Line",
+  // "Blue Line",
+  // "Diganta",
+  // "AK",
+  // "Unique",
+  // "Saudia",
+  // "TR",
+  // "Nabil",
+  // "Bablu",
+  // "Rozina"
 ];
 
 const bdDistricts = [
@@ -111,7 +111,8 @@ const bdDistricts = [
 ];
 
 const SEATS_PER_TRIP = 50;
-const DAYS = Number(process.env.SEED_DAYS) || 30; // trips for the next N days
+const DAYS = Number(process.env.SEED_DAYS) || 3; // trips for the next N days
+const HUB = "Dhaka"; // only generate routes that start or end at this hub
 const SLOT_MINUTES = Number(process.env.SEED_SLOT_MINUTES) || 30; // a trip every N minutes
 const SLOTS_PER_DAY = (24 * 60) / SLOT_MINUTES;
 const COLUMNS_PER_ROW = 7; // seat_no, from_location, to_location, bus_company, is_booked, travel_date, travel_time
@@ -189,7 +190,7 @@ async function seed() {
   const dates = travelDates(DAYS);
   const slots = timeSlots(SLOT_MINUTES);
 
-  const routes = bdDistricts.length * (bdDistricts.length - 1);
+  const routes = 2 * (bdDistricts.length - 1); // HUB -> others and others -> HUB
   const totalTrips =
     dates.length * slots.length * busCompanies.length * routes;
   const totalRows = totalTrips * SEATS_PER_TRIP;
@@ -214,6 +215,7 @@ async function seed() {
           for (const from of bdDistricts) {
             for (const to of bdDistricts) {
               if (from === to) continue; // no trip from a city to itself
+              if (from !== HUB && to !== HUB) continue; // only HUB routes
 
               buffer.push([seatNo(seat), from, to, company, false, date, time]);
 

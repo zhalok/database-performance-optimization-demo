@@ -5,7 +5,7 @@ create table if not exists tickets (
     to_location varchar(100),
     bus_company varchar(100),
     is_booked boolean,
-    price boolean,
+    price int,
     travel_date date,
     travel_time time
 );

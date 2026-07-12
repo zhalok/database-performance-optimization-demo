@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "seed": "node seed.js"
+    "seed": "node seed.js",
+    "seed:bookings": "node seed-bookings.js"
   },
   "dependencies": {
     "pg": "^8.11.3"

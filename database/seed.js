@@ -115,8 +115,9 @@ const DAYS = Number(process.env.SEED_DAYS) || 3; // trips for the next N days
 const HUB = "Dhaka"; // only generate routes that start or end at this hub
 const SLOT_MINUTES = Number(process.env.SEED_SLOT_MINUTES) || 30; // a trip every N minutes
 const SLOTS_PER_DAY = (24 * 60) / SLOT_MINUTES;
-const COLUMNS_PER_ROW = 7; // seat_no, from_location, to_location, bus_company, is_booked, travel_date, travel_time
-const ROWS_PER_BATCH = 5000; // 5000 * 7 = 35000 params, under the 65535 limit
+const TICKET_PRICE = 100;
+const COLUMNS_PER_ROW = 8; // seat_no, from_location, to_location, bus_company, is_booked, travel_date, travel_time, price
+const ROWS_PER_BATCH = 5000; // 5000 * 8 = 40000 params, under the 65535 limit
 
 function seatNo(n) {
   // 100 seats laid out as A1..A25, B1..B25, C1..C25, D1..D25
@@ -169,7 +170,7 @@ async function flush(client, rows) {
   }
 
   const sql =
-    `insert into tickets (seat_no, from_location, to_location, bus_company, is_booked, travel_date, travel_time) values ` +
+    `insert into tickets (seat_no, from_location, to_location, bus_company, is_booked, travel_date, travel_time, price) values ` +
     placeholders.join(", ");
 
   await client.query(sql, values);
@@ -217,7 +218,7 @@ async function seed() {
               if (from === to) continue; // no trip from a city to itself
               if (from !== HUB && to !== HUB) continue; // only HUB routes
 
-              buffer.push([seatNo(seat), from, to, company, false, date, time]);
+              buffer.push([seatNo(seat), from, to, company, false, date, time, TICKET_PRICE]);
 
               if (buffer.length >= ROWS_PER_BATCH) {
                 await flush(client, buffer);

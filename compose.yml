@@ -1,6 +1,9 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    build:
+      context: .
+      dockerfile: dockerfile-postgres
+    image: postgres-filedump
     container_name: postgres
     environment:
       - POSTGRES_PASSWORD=postgres

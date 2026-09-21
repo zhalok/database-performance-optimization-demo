@@ -118,6 +118,7 @@ const SLOTS_PER_DAY = (24 * 60) / SLOT_MINUTES;
 const TICKET_PRICE = 100;
 const COLUMNS_PER_ROW = 8; // seat_no, from_location, to_location, bus_company, is_booked, travel_date, travel_time, price
 const ROWS_PER_BATCH = 5000; // 5000 * 8 = 40000 params, under the 65535 limit
+const TICKETS_UPPER_LIMIT = Number(process.env.TICKETS_UPPER_LIMIT) || Infinity; // stop once this many tickets have been generated
 
 function seatNo(n) {
   // 100 seats laid out as A1..A25, B1..B25, C1..C25, D1..D25
@@ -194,22 +195,26 @@ async function seed() {
   const routes = 2 * (bdDistricts.length - 1); // HUB -> others and others -> HUB
   const totalTrips =
     dates.length * slots.length * busCompanies.length * routes;
-  const totalRows = totalTrips * SEATS_PER_TRIP;
+  const totalRows = Math.min(totalTrips * SEATS_PER_TRIP, TICKETS_UPPER_LIMIT);
   console.log(
     `Planned: ${dates.length} days x ${slots.length} slots/day x ${busCompanies.length} companies x ${routes.toLocaleString()} routes = ${totalTrips.toLocaleString()} trips`
   );
   console.log(
-    `         x ${SEATS_PER_TRIP} seats = ${totalRows.toLocaleString()} tickets`
+    `         x ${SEATS_PER_TRIP} seats = ${(totalTrips * SEATS_PER_TRIP).toLocaleString()} tickets` +
+      (Number.isFinite(TICKETS_UPPER_LIMIT)
+        ? ` (capped at ${TICKETS_UPPER_LIMIT.toLocaleString()})`
+        : "")
   );
 
   let buffer = [];
   let inserted = 0;
+  let generated = 0;
   const start = Date.now();
 
   // Seat is the outermost loop so that each trip's seats are scattered far
   // apart in the table. For one seat we emit every
   // (date, time, company, from, to) combination before moving on to the next.
-  for (let seat = 1; seat <= SEATS_PER_TRIP; seat++) {
+  seatLoop: for (let seat = 1; seat <= SEATS_PER_TRIP; seat++) {
     for (const date of dates) {
       for (const time of slots) {
         for (const company of busCompanies) {
@@ -218,7 +223,10 @@ async function seed() {
               if (from === to) continue; // no trip from a city to itself
               if (from !== HUB && to !== HUB) continue; // only HUB routes
 
+              if (generated >= TICKETS_UPPER_LIMIT) break seatLoop;
+
               buffer.push([seatNo(seat), from, to, company, false, date, time, TICKET_PRICE]);
+              generated++;
 
               if (buffer.length >= ROWS_PER_BATCH) {
                 await flush(client, buffer);

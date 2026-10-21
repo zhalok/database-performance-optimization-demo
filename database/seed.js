@@ -118,7 +118,7 @@ const SLOTS_PER_DAY = (24 * 60) / SLOT_MINUTES;
 const TICKET_PRICE = 100;
 const COLUMNS_PER_ROW = 8; // seat_no, from_location, to_location, bus_company, is_booked, travel_date, travel_time, price
 const ROWS_PER_BATCH = 5000; // 5000 * 8 = 40000 params, under the 65535 limit
-const TICKETS_UPPER_LIMIT = Number(process.env.TICKETS_UPPER_LIMIT) || Infinity; // stop once this many tickets have been generated
+const TICKETS_UPPER_LIMIT = Number(process.env.TICKETS_UPPER_LIMIT) || 10; // stop once this many tickets have been generated
 
 function seatNo(n) {
   // 100 seats laid out as A1..A25, B1..B25, C1..C25, D1..D25
